@@ -17,3 +17,19 @@ serde_json = "1"
 tempfile = "3.1"
 log = "0.4.5"
 generic-array = "0.14.2"
+ya-requestor-sdk = { path = "../yagna/agent/requestor-sdk" }
+ya-agreement-utils = { path = "../yagna/utils/agreement-utils" }
+
+[patch.crates-io]
+ya-client-model = { path = "../ya-client/model" }
+ya-core-model = { path = "../yagna/core/model" }
+ya-net = { path = "../yagna/core/net" }
+ya-service-api = { path = "../yagna/core/serv-api" }
+ya-service-api-derive = { path = "../yagna/core/serv-api/derive" }
+ya-service-api-interfaces = { path = "../yagna/core/serv-api/interfaces" }
+ya-service-bus = { path = "../yagna/service-bus/bus" }
+gftp = { path = "../yagna/core/gftp" }
+ya-client = { path = "../ya-client" }
+ya-agreement-utils = { path = "../yagna/utils/agreement-utils" }
+ya-sb-proto = { path = "../yagna/service-bus/proto" }
+ya-sb-util = { path = "../yagna/service-bus/util" }

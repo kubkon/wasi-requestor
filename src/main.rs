@@ -1,13 +1,14 @@
-use anyhow::{bail, Result};
+use anyhow::Result;
 use generic_array::GenericArray;
 use sha3::{Digest, Sha3_512};
 use std::{
-    fs::{self, File},
+    fs,
     io::{Cursor, Write},
     path::{Path, PathBuf},
-    process::Command,
 };
 use structopt::StructOpt;
+use ya_agreement_utils::{constraints, ConstraintKey, Constraints};
+use ya_requestor_sdk::{commands, CommandList, Image::WebAssembly, Location::File, Requestor};
 use zip::{write::FileOptions, CompressionMethod, ZipWriter};
 
 #[derive(StructOpt)]
@@ -80,7 +81,8 @@ impl Package {
     }
 }
 
-fn main() -> Result<()> {
+#[actix_rt::main]
+async fn main() -> Result<()> {
     let args = Args::from_args();
     pretty_env_logger::init();
 
@@ -89,16 +91,32 @@ fn main() -> Result<()> {
     log::info!("Workspace created in '{}'", workspace.path().display());
 
     // Prepare the zip package
+    let package_path = workspace.path().join("package.zip");
     let mut package = Package::new();
     package.add_module_from_path(&args.module)?;
-
-    // Finalize and get the digest
-    let digest = package.write(workspace.path().join("package.zip"))?;
+    let digest = package.write(&package_path)?;
     log::info!("Package digest: '{:x}'", digest);
 
-    // Launch simple http endpoint to serve our package plus any input/output files
-    // TODO this is really hacky! Figure out a better way of transfering data
-    // between Yagna nodes!
+    let _requestor_actor = Requestor::new(
+        "My Requestor",
+        WebAssembly((1, 0, 0).into()),
+        File(package_path.to_str().unwrap().to_owned()),
+    )
+    .with_max_budget_gnt(5)
+    .with_constraints(constraints![
+        "golem.inf.mem.gib" > 0.5,
+        "golem.inf.storage.gib" > 1.0
+    ])
+    .with_tasks(vec![commands! {
+        upload(&args.args[0]);
+        run("custom", format!("/workspace/{}", &args.args[0]), format!("/workspace/{}", &args.args[1]));
+        download(&args.args[1]);
+    }].into_iter())
+    .on_completed(|outputs: Vec<String>| {
+        outputs.iter().enumerate().for_each(|(i, o)| println!("task #{}: {}", i, o));
+    })
+    .run();
 
+    let _ = actix_rt::signal::ctrl_c().await;
     Ok(())
 }
