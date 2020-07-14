@@ -6,7 +6,7 @@ use std::{
 };
 use structopt::StructOpt;
 use ya_agreement_utils::{constraints, ConstraintKey, Constraints};
-use ya_requestor_sdk::{commands, CommandList, Image::WebAssembly, Requestor, Location};
+use ya_requestor_sdk::{commands, CommandList, Image::WebAssembly, Requestor};
 use zip::{write::FileOptions, CompressionMethod, ZipWriter};
 
 #[derive(StructOpt)]
@@ -98,7 +98,7 @@ async fn main() -> Result<()> {
     let _requestor_actor = Requestor::new(
         "kubkon-requestor-agent",
         WebAssembly((1, 0, 0).into()),
-        Location::Package(package_path)
+        ya_requestor_sdk::Package::Archive(package_path)
     )
     .with_max_budget_gnt(5)
     .with_constraints(constraints![
@@ -107,9 +107,9 @@ async fn main() -> Result<()> {
         "golem.com.pricing.model" == "linear",
     ])
     .with_tasks(vec![commands! {
-        upload(format!("workdir/{}", &args.args[0]));
+        upload(format!("workdir/{}", &args.args[0]), format!("/workdir/{}", &args.args[0]));
         run("custom", format!("/workdir/{}", &args.args[0]), format!("/workdir/{}", &args.args[1]));
-        download(format!("workdir/{}", &args.args[1]));
+        download(format!("/workdir/{}", &args.args[1]), format!("workdir/{}", &args.args[1]));
     }].into_iter())
     .on_completed(|outputs: Vec<String>| {
         outputs.iter().enumerate().for_each(|(i, o)| println!("task #{}: {}", i, o));
