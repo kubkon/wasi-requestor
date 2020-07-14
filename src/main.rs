@@ -95,7 +95,7 @@ async fn main() -> Result<()> {
     package.add_module_from_path(&args.module)?;
     package.write(&package_path)?;
 
-    let _requestor_actor = Requestor::new(
+    Requestor::new(
         "kubkon-requestor-agent",
         WebAssembly((1, 0, 0).into()),
         ya_requestor_sdk::Package::Archive(package_path)
@@ -114,7 +114,7 @@ async fn main() -> Result<()> {
     .on_completed(|outputs: Vec<String>| {
         outputs.iter().enumerate().for_each(|(i, o)| println!("task #{}: {}", i, o));
     })
-    .run();
+    .run().await?;
 
     let _ = actix_rt::signal::ctrl_c().await;
     Ok(())
