@@ -1,4 +1,5 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
+use futures::{future::FutureExt, pin_mut, select};
 use std::{
     fs,
     io::{Cursor, Write},
@@ -85,17 +86,16 @@ async fn main() -> Result<()> {
     pretty_env_logger::init();
 
     // Workspace
-    // let workspace = tempfile::tempdir()?;
-    let workspace = Path::new("workdir");
-    // log::info!("Workspace created in '{}'", workspace.path().display());
+    let workspace = tempfile::tempdir()?;
+    log::info!("Workspace created in '{}'", workspace.path().display());
 
     // Prepare the zip package
-    let package_path = workspace.join("package.zip");
+    let package_path = workspace.path().join("package.zip");
     let mut package = Package::new();
     package.add_module_from_path(&args.module)?;
     package.write(&package_path)?;
 
-    Requestor::new(
+    let requestor = Requestor::new(
         "kubkon-requestor-agent",
         WebAssembly((1, 0, 0).into()),
         ya_requestor_sdk::Package::Archive(package_path)
@@ -107,15 +107,21 @@ async fn main() -> Result<()> {
         "golem.com.pricing.model" == "linear",
     ])
     .with_tasks(vec![commands! {
-        upload(format!("workdir/{}", &args.args[0]), format!("/workdir/{}", &args.args[0]));
+        upload(PathBuf::from(&args.args[0]), format!("/workdir/{}", &args.args[0]));
         run("custom", format!("/workdir/{}", &args.args[0]), format!("/workdir/{}", &args.args[1]));
-        download(format!("/workdir/{}", &args.args[1]), format!("workdir/{}", &args.args[1]));
+        download(format!("/workdir/{}", &args.args[1]), PathBuf::from(&args.args[1]));
     }].into_iter())
     .on_completed(|outputs: Vec<String>| {
         outputs.iter().enumerate().for_each(|(i, o)| println!("task #{}: {}", i, o));
     })
-    .run().await?;
+    .run().fuse();
 
-    let _ = actix_rt::signal::ctrl_c().await;
-    Ok(())
+    let ctrl_c = actix_rt::signal::ctrl_c().fuse();
+
+    pin_mut!(requestor, ctrl_c);
+
+    select! {
+        comp_res = requestor => comp_res,
+        _ = ctrl_c => Err(anyhow!("interrupted: ctrl-c detected!")),
+    }
 }
