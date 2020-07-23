@@ -4,6 +4,7 @@ use std::{
     fs,
     io::{Cursor, Write},
     path::{Path, PathBuf},
+    collections::HashMap,
 };
 use structopt::StructOpt;
 use ya_agreement_utils::{constraints, ConstraintKey, Constraints};
@@ -107,12 +108,12 @@ async fn main() -> Result<()> {
         "golem.com.pricing.model" == "linear",
     ])
     .with_tasks(vec![commands! {
-        upload(PathBuf::from(&args.args[0]), format!("/workdir/{}", &args.args[0]));
+        upload(&args.args[0], format!("/workdir/{}", &args.args[0]));
         run("custom", format!("/workdir/{}", &args.args[0]), format!("/workdir/{}", &args.args[1]));
-        download(format!("/workdir/{}", &args.args[1]), PathBuf::from(&args.args[1]));
+        download(format!("/workdir/{}", &args.args[1]), &args.args[1]);
     }].into_iter())
-    .on_completed(|outputs: Vec<String>| {
-        outputs.iter().enumerate().for_each(|(i, o)| println!("task #{}: {}", i, o));
+    .on_completed(|outputs: HashMap<String, String>| {
+        println!("{:#?}", outputs);
     })
     .run().fuse();
 
